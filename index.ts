@@ -152,8 +152,8 @@ Deno.serve(async (request) => {
   }
 
   try {
-    // مسار سريع: تخطي تحليل AI حين يكفي التحليل الحتمي (كلمات واضحة بلا أرقام مواد)
-    const useAiAnalysis = input.analysisMode === "deep" ? true : (shouldUseAiAnalysis(input, baselineAnalysis) && !canSkipAiAnalysis(baselineAnalysis));
+    // مسار سريع: تخطي تحليل AI حين يكفي التحليل الحتمي (كلمات واضحة بلا أرقام مواد) — حتى في deep
+    const clearQuery = canSkipAiAnalysis(baselineAnalysis) && baselineAnalysis.articleNumbers.length === 0;\n    const useAiAnalysis = clearQuery ? false : shouldUseAiAnalysis(input, baselineAnalysis);
     const improved = useAiAnalysis
       ? await improveQueryWithAi(access.service, input, baselineAnalysis)
       : { analysis: deterministicAiAnalysis(baselineAnalysis), model: null };

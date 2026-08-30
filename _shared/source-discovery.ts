@@ -39,10 +39,10 @@ export async function invokeSourceDiscovery(request: Request, input: ParsedReque
         },
         idempotencyKey: `${input.idempotencyKey}:source-discovery`,
       }),
-      signal: AbortSignal.timeout(55_000),
+      signal: AbortSignal.timeout(8_000),
     });
     const body = await response.json().catch(() => null) as JsonObject | null;
-    if (!response.ok || !body) return { error: `SOURCE_DISCOVERY_HTTP_${response.status}` };
+    if (!response.ok || !body) return { error: `SOURCE_DISCOVERY_HTTP_${response.status}`, timeoutCapped: true };
     return body.sourceDiscovery && typeof body.sourceDiscovery === "object" ? body.sourceDiscovery as JsonObject : { error: "SOURCE_DISCOVERY_INVALID_RESPONSE" };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "SOURCE_DISCOVERY_FAILED" };
