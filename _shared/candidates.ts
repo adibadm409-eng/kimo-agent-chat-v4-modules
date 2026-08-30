@@ -118,13 +118,27 @@ export function qualityScore(candidate: Candidate, analysis: QueryAnalysis) {
   const modeAgreement = candidate.modes.size / 3;
   const coverage = keywordCoverage(candidate, analysis);
   const article = articleMatch(candidate, analysis);
-  // عندما يطلب المستخدم مادة برقمها، مطابقة الرقم الفعلية تتفوق على أي تشابه متجهي
+  // إصلاح جذري لمشكلة الأرقام: رقم المادة مكرر عبر 20+ قانوناً،
+  // فالمطابقة القوية تتطلب الرقم الصحيح + توافق موضوعي مع كلمات السؤال.
+  // الرقم دون توافق موضوعي = خصم يمنع هيمنة مادة غريبة الموضوع.
   const hasArticleQuery = analysis.articleNumbers.length > 0;
-  const base = rankFusion(candidate) * (hasArticleQuery ? 0.25 : 0.42) +
+  let articleScore = article * (hasArticleQuery ? 0.35 : 0.05);
+  if (hasArticleQuery && article > 0) {
+    const haystack = normalizeArabic(`${candidate.titleAr ?? ""} ${candidate.sectionPath ?? ""} ${candidate.excerpt}`).toLocaleLowerCase();
+    const objective = unique([...analysis.keywords, ...tokenize(analysis.intent).filter((t) => !STOP_WORDS.has(t) && !PROMPT_WORDS.has(t))]).slice(0, 10);
+    const matched = objective.filter((k) => haystack.includes(k.toLocaleLowerCase())).length;
+    const topicRatio = objective.length ? matched / objective.length : 0;
+    if (topicRatio >= 0.25) {
+      articleScore = article * 0.5; // الرقم الصحيح والموضوع متوافق: تعزيز أقصى
+    } else if (topicRatio < 0.12) {
+      articleScore = article * -0.2; // رقم صحيح من قانون أجنبي عن الموضوع: خصم
+    }
+  }
+  const base = rankFusion(candidate) * (hasArticleQuery ? 0.22 : 0.42) +
     modeAgreement * 0.18 +
     Math.max(semanticEvidence(candidate), hybridEvidence(candidate), textEvidence(candidate)) * 0.18 +
     coverage * 0.17 +
-    article * (hasArticleQuery ? 0.35 : 0.05);
+    articleScore;
   return Math.min(1, base);
 }
 
