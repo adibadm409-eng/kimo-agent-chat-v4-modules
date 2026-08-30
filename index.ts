@@ -194,10 +194,13 @@ Deno.serve(async (request) => {
       suggestedScope: topScopeResults.length ? "narrow" : "wide",
       source: "validated_top_results",
     };
-    const orchestration = await runOrchestration(access.service, input.query, analysis, results, quality, effectiveInput);
-    const [grounded, relatedEvidence] = await Promise.all([
-      synthesizeGroundedAnswer(access.service, input.query, analysis, results, quality, effectiveInput, orchestration),
+    // موازنة كاملة: العمال + الصياغة + توسيع العلاقات تعمل معاً بعد اكتمال الاسترجاع
+    // العمال لا يدخلون في صياغة الجواب بل إشارات تدقيق — لذا لا ننتظرهم قبل الصياغة
+    const orchestrationPromise = runOrchestration(access.service, input.query, analysis, results, quality, effectiveInput);
+    const [grounded, relatedEvidence, orchestration] = await Promise.all([
+      synthesizeGroundedAnswer(access.service, input.query, analysis, results, quality, effectiveInput, null),
       input.includeRelated ? expandRelatedEvidence(access.service, results, input) : Promise.resolve({ edges: [], sources: [], attempted: false, skipped: true }),
+      orchestrationPromise,
     ]);
     if (orchestration && orchestration.arbitration.status !== "convergent") {
       grounded.answer.confidence = "low";

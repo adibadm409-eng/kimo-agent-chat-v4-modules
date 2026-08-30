@@ -72,32 +72,49 @@ export async function runOrchestration(
       let workerEvidence = evidence;
       let sourceRefs: JsonObject[] = [];
       if (role === "retrieval") {
-        const workerSearch = await searchLegalKnowledge(service, {
-          query: analysis.alternativeQuery || analysis.canonicalQuery,
-          mode: "hybrid",
-          matchCount: Math.min(6, Math.max(3, input.topK)),
-          matchThreshold: input.matchThreshold,
-          jurisdictionCode: input.jurisdictionCode,
-          instrumentType: input.instrumentType,
-          legalDomain: input.legalDomain,
-          documentIds: input.documentIds,
-          includeNonActive: false,
-          idempotencyKey: `${input.idempotencyKey}:worker-retrieval`,
-          queryEmbedding: null,
-          profileKey: input.searchSkill.enabled ? input.searchSkill.profileKey : null,
-          profileOwner: input.searchSkill.enabled ? input.searchSkill.profileOwner : null,
-        });
-        const workerRows = await enrichResultIdentity(service, (workerSearch.results ?? []) as JsonObject[]);
-        sourceRefs = workerRows.slice(0, 6).map((row) => ({
-          documentId: text(row.document_id, MAX_DOCUMENT_ID_LENGTH) || null,
-          versionId: text(row.version_id, 80) || null,
-          chunkId: text(row.chunk_id, 240) || null,
-          unitId: text(row.unit_id, 240) || null,
-          articleNumber: text(row.article_number, 100) || null,
-          sectionPath: text(row.section_path, MAX_SCOPE_PATH_LENGTH) || null,
-          titleAr: text(row.title_ar, 400) || null,
+        // إعادة استخدام نتائج البحث الرئيسية كمرجع فوري؛ بحث العامل يجري بحد 6 ثوانٍ فقط وإلا نستخدم النتائج الجاهزة
+        const fallbackRefs = results.slice(0, 6).map((row) => ({
+          documentId: text(row.documentId, MAX_DOCUMENT_ID_LENGTH) || null,
+          versionId: text(row.versionId, 80) || null,
+          chunkId: text(row.chunkId, 240) || null,
+          unitId: text(row.unitId, 240) || null,
+          articleNumber: text(row.articleNumber, 100) || null,
+          sectionPath: text(row.sectionPath, MAX_SCOPE_PATH_LENGTH) || null,
+          titleAr: text(row.titleAr, 400) || null,
           verbatimQuote: text(row.excerpt, 1_600) || null,
         }));
+        const workerSearchPromise = (async () => {
+          const workerSearch = await searchLegalKnowledge(service, {
+            query: analysis.alternativeQuery || analysis.canonicalQuery,
+            mode: "hybrid",
+            matchCount: Math.min(6, Math.max(3, input.topK)),
+            matchThreshold: input.matchThreshold,
+            jurisdictionCode: input.jurisdictionCode,
+            instrumentType: input.instrumentType,
+            legalDomain: input.legalDomain,
+            documentIds: input.documentIds,
+            includeNonActive: false,
+            idempotencyKey: `${input.idempotencyKey}:worker-retrieval`,
+            queryEmbedding: null,
+            profileKey: input.searchSkill.enabled ? input.searchSkill.profileKey : null,
+            profileOwner: input.searchSkill.enabled ? input.searchSkill.profileOwner : null,
+          });
+          const workerRows = await enrichResultIdentity(service, (workerSearch.results ?? []) as JsonObject[]);
+          return workerRows.slice(0, 6).map((row) => ({
+            documentId: text(row.document_id, MAX_DOCUMENT_ID_LENGTH) || null,
+            versionId: text(row.version_id, 80) || null,
+            chunkId: text(row.chunk_id, 240) || null,
+            unitId: text(row.unit_id, 240) || null,
+            articleNumber: text(row.article_number, 100) || null,
+            sectionPath: text(row.section_path, MAX_SCOPE_PATH_LENGTH) || null,
+            titleAr: text(row.title_ar, 400) || null,
+            verbatimQuote: text(row.excerpt, 1_600) || null,
+          }));
+        })();
+        sourceRefs = await Promise.race([
+          workerSearchPromise.catch(() => fallbackRefs),
+          new Promise((resolve) => setTimeout(() => resolve(fallbackRefs), 6_000)),
+        ]) as JsonObject[];
         workerEvidence = [...evidence, ...sourceRefs.map((row, index) => ({ ...row, index: evidence.length + index + 1, excerpt: row.verbatimQuote }))];
       }
       const invocation = await invokeConfiguredModel(service, {
