@@ -50,7 +50,7 @@ export function buildQueryAnalysis(
   const intentTerms = INTENT_TERMS[intent] ?? INTENT_TERMS.general;
   // تحديد القانون: ذكر صريح لأداة تشريعية (قانون/نظام/لائحة/مرسوم/تعليمات/قرار)
   // أو فلاتر وثائق صريحة من المستدعي. رقم المادة وحده لا يحدد القانون أبداً.
-  const lawMentioned = /(?:قانون|القانون|نظام|النظام|لائحة|اللائحة|مرسوم|المرسوم|تعليمات|التعليمات|قرار|القرار)/.test(normalized);
+  const lawMentioned = /(?:قانون|القانون|نظام|النظام|لائحة|اللائحة|مرسوم|المرسوم|تعليمات|التعليمات|قرار|القرار|تنظيم|التنظيم|اتفاقية|الاتفاقية)/.test(normalized);
   const lawSpecified = lawMentioned || Boolean(scope.documentIds && scope.documentIds.length > 0);
   const articleQuery = lawSpecified ? articleNumbers : [];
   const entityTerms = [filters.jurisdictionCode, filters.instrumentType, filters.legalDomain].filter(Boolean) as string[];
