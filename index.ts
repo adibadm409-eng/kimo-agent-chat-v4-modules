@@ -48,7 +48,7 @@ function parseRequest(body: RequestBody): ParsedRequest {
   const rawOrchestration = body.orchestration && typeof body.orchestration === "object" && !Array.isArray(body.orchestration) ? body.orchestration as JsonObject : {};
   const orchestration: ParsedRequest["orchestration"] = {
     enabled: rawOrchestration.enabled !== false,
-    mode: rawOrchestration.mode === "parallel_research" || rawOrchestration.mode === "adaptive" || rawOrchestration.mode === "single" ? rawOrchestration.mode : "deep_review",
+    mode: rawOrchestration.mode === "parallel_research" || rawOrchestration.mode === "deep_review" || rawOrchestration.mode === "single" ? rawOrchestration.mode : "adaptive",
     maxWorkers: boundedInt(rawOrchestration.maxWorkers, 3, 1, 3),
     timeoutMs: boundedInt(rawOrchestration.timeoutMs, 45_000, 10_000, 60_000),
   };

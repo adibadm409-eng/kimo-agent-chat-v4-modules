@@ -54,7 +54,7 @@ export async function runOrchestration(
   const control = input.orchestration;
   if (!control.enabled || control.mode === "single") return null;
   const sourceCount = new Set(results.map((result) => `${text(result.documentId, MAX_DOCUMENT_ID_LENGTH)}|${text(result.versionId, 80)}`)).size;
-  const adaptiveNeedsWorkers = analysis.articleNumbers.length > 0 || sourceCount > 1 || quality.evidenceStatus !== "sufficient" || input.comparison.enabled;
+  const adaptiveNeedsWorkers = analysis.articleNumbers.length > 0 || quality.evidenceStatus !== "sufficient" || input.comparison.enabled;
   if (control.mode === "adaptive" && !adaptiveNeedsWorkers) return { enabled: true, mode: control.mode, workers: [], arbitration: { status: "convergent", completedWorkerCount: 0, conflictCount: 0, validWorkerClaimCount: 0, policy: "adaptive_mode_kept_single_agent_path_for_clear_single_source_evidence" } };
   const roles: WorkerRole[] = control.mode === "deep_review"
     ? ["retrieval", "article_verification", "critical_review"]
