@@ -118,13 +118,14 @@ export function qualityScore(candidate: Candidate, analysis: QueryAnalysis) {
   const modeAgreement = candidate.modes.size / 3;
   const coverage = keywordCoverage(candidate, analysis);
   const article = articleMatch(candidate, analysis);
-  return Math.min(1, (
-    rankFusion(candidate) * 0.42 +
+  // عندما يطلب المستخدم مادة برقمها، مطابقة الرقم الفعلية تتفوق على أي تشابه متجهي
+  const hasArticleQuery = analysis.articleNumbers.length > 0;
+  const base = rankFusion(candidate) * (hasArticleQuery ? 0.25 : 0.42) +
     modeAgreement * 0.18 +
     Math.max(semanticEvidence(candidate), hybridEvidence(candidate), textEvidence(candidate)) * 0.18 +
     coverage * 0.17 +
-    article * 0.05
-  ));
+    article * (hasArticleQuery ? 0.35 : 0.05);
+  return Math.min(1, base);
 }
 
 export function passesQuality(candidate: Candidate, analysis: QueryAnalysis) {

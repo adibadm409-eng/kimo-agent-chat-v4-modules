@@ -184,7 +184,15 @@ Deno.serve(async (request) => {
     const quality = summarizeQuality(outcome.final, outcome.attempts, analysis);
     const requestId = request.headers.get("x-request-id")?.trim().slice(0, 120) || crypto.randomUUID();
     const retrievedResults = outcome.final.selected.map((candidate) => sanitizeCandidate(candidate, analysis));
-    const results = selectGroundingResults(retrievedResults, effectiveInput.comparison);
+    // المقارنة اختيارية بقرار الوكيل: تُشغَّل فقط إذا توفّر تعدد مصادر فعلي يستحق المقارنة
+    // (وثيقتان+ بنفس الصلة بعد الاسترجاع)، وإلا تعمل بوضع العنقود الأوحد الأسرع والأدق
+    const retrievedDocIds = unique(retrievedResults.map((row) => text(row.documentId, MAX_DOCUMENT_ID_LENGTH)));
+    const multiSourceDetected = retrievedDocIds.length >= 2;
+    const comparisonControl: ParsedRequest["comparison"] = effectiveInput.comparison.enabled && multiSourceDetected
+      ? { ...effectiveInput.comparison, enabled: true }
+      : { ...effectiveInput.comparison, enabled: false, answerMode: "single_cluster" };
+    if (!comparisonControl.enabled) effectiveInput = { ...effectiveInput, comparison: comparisonControl };
+    const results = selectGroundingResults(retrievedResults, comparisonControl);
     const topScopeResults = results.slice(0, 5);
     const scopeHints = {
       documentIds: unique(topScopeResults.map((row) => text(row.documentId, MAX_DOCUMENT_ID_LENGTH))).slice(0, MAX_SCOPE_IDS),
@@ -237,7 +245,7 @@ Deno.serve(async (request) => {
         tools: ["lexical_text", "semantic_vector", "hybrid_rrf", "adaptive_retry", "relation_expansion", "bounded_parallel_research_workers", "central_arbitration", "professional_narrative_rebuild"],
         searchProfile: outcome.attempts.find((attempt) => attempt.result?.profile)?.result?.profile ?? null,
         scopeValidation: evidenceScopeValidation(results, effectiveInput),
-        groundingSelection: { initialCandidateCount: retrievedResults.length, selectedEvidenceCount: results.length, selectedDocumentIds: unique(results.map((row) => text(row.documentId, MAX_DOCUMENT_ID_LENGTH))).slice(0, MAX_SCOPE_IDS), selectedVersionIds: unique(results.map((row) => text(row.versionId, 80))).slice(0, MAX_SCOPE_IDS), policy: effectiveInput.comparison.enabled && effectiveInput.comparison.answerMode === "multi_source" ? "multi_source_comparison_with_bounded_clusters" : "single_document_version_cluster_for_answer", comparison: effectiveInput.comparison },
+        groundingSelection: { initialCandidateCount: retrievedResults.length, selectedEvidenceCount: results.length, selectedDocumentIds: unique(results.map((row) => text(row.documentId, MAX_DOCUMENT_ID_LENGTH))).slice(0, MAX_SCOPE_IDS), selectedVersionIds: unique(results.map((row) => text(row.versionId, 80))).slice(0, MAX_SCOPE_IDS), policy: comparisonControl.enabled && comparisonControl.answerMode === "multi_source" ? "multi_source_comparison_with_bounded_clusters" : "single_document_version_cluster_for_answer", comparison: comparisonControl },
         scopeHints,
         articleTargeting,
         orchestration,
