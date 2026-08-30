@@ -117,6 +117,7 @@ export type QueryAnalysis = {
     legalDomain: string | null;
   };
   canonicalQuery: string;
+  lawSpecified: boolean;
   keywordQuery: string;
   semanticQuery: string;
   alternativeQuery: string;

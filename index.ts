@@ -142,7 +142,7 @@ Deno.serve(async (request) => {
     jurisdictionCode: input.jurisdictionCode,
     instrumentType: input.instrumentType,
     legalDomain: input.legalDomain,
-  });
+  }, { documentIds: input.documentIds });
   const startedAt = Date.now();
   try {
     await consumeAgentUsage(access.service, access.userId, input.idempotencyKey);

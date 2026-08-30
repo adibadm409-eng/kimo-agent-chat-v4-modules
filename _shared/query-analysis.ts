@@ -35,6 +35,7 @@ function detectIntent(query: string) {
 export function buildQueryAnalysis(
   original: string,
   filters: { jurisdictionCode: string | null; instrumentType: string | null; legalDomain: string | null },
+  scope: { documentIds: string[] | null } = { documentIds: null },
 ): QueryAnalysis {
   const normalized = normalizeArabic(original);
   const tokens = tokenize(normalized);
@@ -47,13 +48,18 @@ export function buildQueryAnalysis(
   const years = extractNumbers(normalized, /(?:سنه|سنة|عام|قانون|law)[\s(:/-]*(\d{4})/giu);
   const intent = detectIntent(normalized);
   const intentTerms = INTENT_TERMS[intent] ?? INTENT_TERMS.general;
+  // تحديد القانون: ذكر صريح لأداة تشريعية (قانون/نظام/لائحة/مرسوم/تعليمات/قرار)
+  // أو فلاتر وثائق صريحة من المستدعي. رقم المادة وحده لا يحدد القانون أبداً.
+  const lawMentioned = /(?:قانون|القانون|نظام|النظام|لائحة|اللائحة|مرسوم|المرسوم|تعليمات|التعليمات|قرار|القرار)/.test(normalized);
+  const lawSpecified = lawMentioned || Boolean(scope.documentIds && scope.documentIds.length > 0);
+  const articleQuery = lawSpecified ? articleNumbers : [];
   const entityTerms = [filters.jurisdictionCode, filters.instrumentType, filters.legalDomain].filter(Boolean) as string[];
-  const canonicalQuery = unique([normalized, ...articleNumbers.map((value) => `مادة ${value}`), ...entityTerms]).join(" ").slice(0, MAX_QUERY_LENGTH);
-  const keywordQuery = unique([...keywords, ...articleNumbers.map((value) => `مادة ${value}`), ...years, ...entityTerms]).slice(0, MAX_OBJECTIVE_KEYWORDS + 4).join(" ").slice(0, MAX_QUERY_LENGTH);
-  const semanticQuery = unique([normalized, ...keywords.slice(0, MAX_OBJECTIVE_KEYWORDS), ...articleNumbers.map((value) => `مادة ${value}`)]).join(" ").slice(0, MAX_QUERY_LENGTH);
+  const canonicalQuery = unique([normalized, ...articleQuery.map((value) => `مادة ${value}`), ...entityTerms]).join(" ").slice(0, MAX_QUERY_LENGTH);
+  const keywordQuery = unique([...keywords, ...articleQuery.map((value) => `مادة ${value}`), ...years, ...entityTerms]).slice(0, MAX_OBJECTIVE_KEYWORDS + 4).join(" ").slice(0, MAX_QUERY_LENGTH);
+  const semanticQuery = unique([normalized, ...keywords.slice(0, MAX_OBJECTIVE_KEYWORDS), ...articleQuery.map((value) => `مادة ${value}`)]).join(" ").slice(0, MAX_QUERY_LENGTH);
   const alternativeQuery = unique([
     ...keywords.slice(0, MAX_OBJECTIVE_KEYWORDS),
-    ...articleNumbers.map((value) => `مادة ${value}`),
+    ...articleQuery.map((value) => `مادة ${value}`),
     ...years,
     ...entityTerms,
   ]).join(" ").slice(0, MAX_QUERY_LENGTH);
@@ -66,6 +72,7 @@ export function buildQueryAnalysis(
     articleNumbers,
     years,
     entities: filters,
+    lawSpecified,
     canonicalQuery,
     keywordQuery: keywordQuery || canonicalQuery,
     semanticQuery,

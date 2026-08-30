@@ -86,12 +86,11 @@ export function keywordCoverage(candidate: Candidate, analysis: QueryAnalysis) {
 
 export function articleMatch(candidate: Candidate, analysis: QueryAnalysis) {
   if (!analysis.articleNumbers.length) return 0;
+  // إصلاح جذري: المطابقة برقم المادة الفعلي للمرشح فقط.
+  // ذكر الرقم داخل نص مادة أخرى (مثل إحالة "المادة (91)") لا يُعد مطابقة —
+  // لأن 20+ قانوناً لديها نفس الأرقام فالإحالة الداخلية تضلل الترتيب.
   const articleNumber = normalizeArabic(candidate.articleNumber ?? "");
-  const excerpt = normalizeArabic(candidate.excerpt);
-  return analysis.articleNumbers.some((number) => {
-    const normalizedNumber = normalizeArabic(number);
-    return articleNumber === normalizedNumber || new RegExp(`(?:ماده|الماده|article|art\\.?)[\\s(:-]*${normalizedNumber}(?:\\D|$)`, "iu").test(excerpt);
-  }) ? 1 : 0;
+  return analysis.articleNumbers.some((number) => articleNumber === normalizeArabic(number)) ? 1 : 0;
 }
 
 function rankFusion(candidate: Candidate) {
@@ -117,21 +116,22 @@ function hybridEvidence(candidate: Candidate) {
 export function qualityScore(candidate: Candidate, analysis: QueryAnalysis) {
   const modeAgreement = candidate.modes.size / 3;
   const coverage = keywordCoverage(candidate, analysis);
-  const article = articleMatch(candidate, analysis);
-  // إصلاح جذري لمشكلة الأرقام: رقم المادة مكرر عبر 20+ قانوناً،
-  // فالمطابقة القوية تتطلب الرقم الصحيح + توافق موضوعي مع كلمات السؤال.
-  // الرقم دون توافق موضوعي = خصم يمنع هيمنة مادة غريبة الموضوع.
-  const hasArticleQuery = analysis.articleNumbers.length > 0;
-  let articleScore = article * (hasArticleQuery ? 0.35 : 0.05);
+  // قاعدة قانونية صارمة: رقم المادة لا يقود البحث أو الترتيب إلا بعد تحديد القانون.
+  // رقم المادة مكرر عبر 20+ قانوناً في قاعدة البيانات، فبدون قانون محدد
+  // يبقى الترتيب موضوعياً صرفاً (كلمات + نية)، ولا يُستخدم الرقم إطلاقاً.
+  const articleBoostAllowed = analysis.lawSpecified;
+  const article = articleBoostAllowed ? articleMatch(candidate, analysis) : 0;
+  const hasArticleQuery = articleBoostAllowed && analysis.articleNumbers.length > 0;
+  let articleScore = article * 0.05;
   if (hasArticleQuery && article > 0) {
     const haystack = normalizeArabic(`${candidate.titleAr ?? ""} ${candidate.sectionPath ?? ""} ${candidate.excerpt}`).toLocaleLowerCase();
     const objective = unique([...analysis.keywords, ...tokenize(analysis.intent).filter((t) => !STOP_WORDS.has(t) && !PROMPT_WORDS.has(t))]).slice(0, 10);
     const matched = objective.filter((k) => haystack.includes(k.toLocaleLowerCase())).length;
     const topicRatio = objective.length ? matched / objective.length : 0;
     if (topicRatio >= 0.25) {
-      articleScore = article * 0.5; // الرقم الصحيح والموضوع متوافق: تعزيز أقصى
+      articleScore = article * 0.5; // الرقم الصحيح والقانون محدد والموضوع متوافق
     } else if (topicRatio < 0.12) {
-      articleScore = article * -0.2; // رقم صحيح من قانون أجنبي عن الموضوع: خصم
+      articleScore = article * -0.2; // الرقم صحيح لكن الموضوع أجنبي ضمن نفس القانون المحدد
     }
   }
   const base = rankFusion(candidate) * (hasArticleQuery ? 0.22 : 0.42) +

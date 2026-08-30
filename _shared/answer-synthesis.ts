@@ -84,7 +84,7 @@ export function evidenceScopeValidation(results: JsonObject[], input: ParsedRequ
   };
 }
 
-export function attachClaimCitations(answer: AiAnswer, results: JsonObject[], input: ParsedRequest, quality: QualitySummary) {
+export function attachClaimCitations(answer: AiAnswer, results: JsonObject[], input: ParsedRequest, quality: QualitySummary, analysis: QueryAnalysis) {
   const claims = answer.claims.map((claim) => ({
     ...claim,
     citations: claim.citationIndexes.map((index) => citationFromResult(index, results[index - 1] ?? {})).filter((citation) => citation.documentId || citation.chunkId),
@@ -107,6 +107,7 @@ export function attachClaimCitations(answer: AiAnswer, results: JsonObject[], in
   let answerText = answer.answer;
   if (validation.requiresScopeConfirmation) {
     if (!caveats.some((caveat) => caveat.includes("الاختصاص") || caveat.includes("الإصدار"))) caveats.push("لا يجوز تعميم هذه النتيجة قبل تثبيت الاختصاص ونوع الأداة والإصدار النافذ.");
+    if (analysis.articleNumbers.length > 0 && !analysis.lawSpecified && !caveats.some((caveat) => caveat.includes("حدد القانون"))) caveats.push("سؤالك يذكر مادة برقمها دون تحديد القانون، والرقم وحده يتكرر في عشرات القوانين؛ حدد القانون أو النظام للحصول على المادة الصحيحة.");
     if (!answerText.includes("ليست قاعدة عامة") && !answerText.includes("تثبيت الاختصاص")) answerText = `تنبيه نطاقي: الأدلة التالية مستخلصة من مصدر قانوني محدد، وليست قاعدة عامة قبل تثبيت الاختصاص ونوع الأداة والإصدار النافذ.\n\n${answerText}`;
   }
   return { ...answer, answer: answerText, claims, comparisonMatrix, answerGrounding, caveats, confidence };
@@ -226,7 +227,7 @@ export async function synthesizeGroundedAnswer(
       payload: { intent: analysis.intent, entities: analysis.entities, evidenceStatus: quality.evidenceStatus, scopeValidation: evidenceScopeValidation(results, input), comparison: input.comparison, orchestration, evidence },
       maxOutputTokens: 3_500,
     });
-    const normalized = attachClaimCitations(normalizeAnswer(parseModelJson<unknown>(invocation.output), results.length, fallback), results, input, quality);
+    const normalized = attachClaimCitations(normalizeAnswer(parseModelJson<unknown>(invocation.output), results.length, fallback), results, input, quality, analysis);
     if (!normalized.claims.length) {
       normalized.answer = fallback.answer;
       normalized.citationIndexes = results.length ? [1] : [];

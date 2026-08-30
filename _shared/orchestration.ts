@@ -66,7 +66,7 @@ export async function runOrchestration(
     critical_review: "اعمل كناقد قانوني مستقل: ابحث عن تعارض بين الوثائق والإصدارات، والاستثناءات، وخطر التعميم، وأي claim لا يثبته الاقتباس مباشرة.",
   };
   const runWorker = async (role: WorkerRole): Promise<WorkerResult> => {
-    if (role === "article_verification" && !analysis.articleNumbers.length) return { role, status: "skipped", claims: [], conflicts: [], limitations: ["لا يوجد رقم مادة صريح في السؤال."], sourceRefs: [], latencyMs: 0, model: null };
+    if (role === "article_verification" && (!analysis.articleNumbers.length || !analysis.lawSpecified)) return { role, status: "skipped", claims: [], conflicts: [], limitations: [!analysis.articleNumbers.length ? "لا يوجد رقم مادة صريح في السؤال." : "رقم المادة موجود لكن القانون غير محدد — لا يصح التحقق من مادة قبل تثبيت قانونها."], sourceRefs: [], latencyMs: 0, model: null };
     const startedAt = Date.now();
     try {
       let workerEvidence = evidence;
