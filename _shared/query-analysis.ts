@@ -138,6 +138,11 @@ export function shouldUseAiAnalysis(input: ParsedRequest, baseline: QueryAnalysi
   return baseline.articleNumbers.length > 0 || baseline.keywords.length < 3 || baseline.normalized.length > 220 || input.comparison.enabled || input.sourceDiscovery.enabled;
 }
 
+// مسار سريع: سؤال واضح (كلمات كافية، لا أرقام مواد، قصير نسبياً) لا يحتاج تحليل AI إضافي
+export function canSkipAiAnalysis(baseline: QueryAnalysis) {
+  return baseline.keywords.length >= 3 && baseline.articleNumbers.length === 0 && baseline.normalized.length <= 220;
+}
+
 export function deterministicAiAnalysis(baseline: QueryAnalysis): AiAnalysis {
   return {
     intent: baseline.intent,

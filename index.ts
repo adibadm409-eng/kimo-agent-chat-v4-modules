@@ -14,7 +14,7 @@ import {
   unique,
 } from "https://raw.githubusercontent.com/adibadm409-eng/kimo-agent-chat-v4-modules/main/_shared/utils.ts";
 import { corsHeaders, errorResponse, json, verifyUser } from "https://raw.githubusercontent.com/adibadm409-eng/kimo-agent-chat-v4-modules/main/_shared/http.ts";
-import { applyAiAnalysis, buildQueryAnalysis, deterministicAiAnalysis, improveQueryWithAi, shouldUseAiAnalysis } from "https://raw.githubusercontent.com/adibadm409-eng/kimo-agent-chat-v4-modules/main/_shared/query-analysis.ts";
+import { applyAiAnalysis, buildQueryAnalysis, canSkipAiAnalysis, deterministicAiAnalysis, improveQueryWithAi, shouldUseAiAnalysis } from "https://raw.githubusercontent.com/adibadm409-eng/kimo-agent-chat-v4-modules/main/_shared/query-analysis.ts";
 import { applyAutoSourceScope, invokeSourceDiscovery } from "https://raw.githubusercontent.com/adibadm409-eng/kimo-agent-chat-v4-modules/main/_shared/source-discovery.ts";
 import { evidenceScopeValidation, selectGroundingResults, synthesizeGroundedAnswer } from "https://raw.githubusercontent.com/adibadm409-eng/kimo-agent-chat-v4-modules/main/_shared/answer-synthesis.ts";
 import { articleRetrievalDiagnostic, sanitizeCandidate } from "https://raw.githubusercontent.com/adibadm409-eng/kimo-agent-chat-v4-modules/main/_shared/candidates.ts";
@@ -152,7 +152,8 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const useAiAnalysis = shouldUseAiAnalysis(input, baselineAnalysis);
+    // مسار سريع: تخطي تحليل AI حين يكفي التحليل الحتمي (كلمات واضحة بلا أرقام مواد)
+    const useAiAnalysis = input.analysisMode === "deep" ? true : (shouldUseAiAnalysis(input, baselineAnalysis) && !canSkipAiAnalysis(baselineAnalysis));
     const improved = useAiAnalysis
       ? await improveQueryWithAi(access.service, input, baselineAnalysis)
       : { analysis: deterministicAiAnalysis(baselineAnalysis), model: null };

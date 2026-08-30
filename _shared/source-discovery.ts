@@ -22,7 +22,7 @@ export async function invokeSourceDiscovery(request: Request, input: ParsedReque
         versionIds: input.versionIds,
         unitIds: input.unitIds,
         sectionPaths: input.sectionPaths,
-        retrievalScope: input.retrievalScope,
+        retrievalScope: "normal",
         control: {
           outputMode: input.sourceDiscovery.outputMode,
           detailLevel: input.sourceDiscovery.outputMode === "routing" ? "standard" : "compact",
@@ -39,7 +39,7 @@ export async function invokeSourceDiscovery(request: Request, input: ParsedReque
         },
         idempotencyKey: `${input.idempotencyKey}:source-discovery`,
       }),
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(55_000),
     });
     const body = await response.json().catch(() => null) as JsonObject | null;
     if (!response.ok || !body) return { error: `SOURCE_DISCOVERY_HTTP_${response.status}` };
