@@ -98,7 +98,7 @@ export function attachClaimCitations(answer: AiAnswer, results: JsonObject[], in
   let answerGrounding: AiAnswer["answerGrounding"] = claims.length ? "grounded" : results.length ? "unmapped" : "no_evidence";
   const sourceKeys = new Set(results.map((result) => `${text(result.documentId, MAX_DOCUMENT_ID_LENGTH)}|${text(result.versionId, 80)}`));
   const comparisonRequested = input.comparison.enabled && input.comparison.answerMode === "multi_source" && sourceKeys.size > 1;
-  if (comparisonRequested && comparisonMatrix.length < 2) {
+  if (comparisonRequested && comparisonMatrix.length < 1) {
     answerGrounding = claims.length ? "partial" : "unmapped";
     caveats.push("تم استرجاع أكثر من مصدر، لكن لم تتكون مصفوفة مقارنة موثقة لكل مصدر؛ لا تعتمد على المقارنة قبل مراجعة الأدلة الأصلية.");
   }
@@ -136,6 +136,16 @@ export function normalizeAnswer(value: unknown, resultCount: number, fallback: A
   return { answer: answer || fallback.answer, caveats: caveats.length ? caveats : fallback.caveats, citationIndexes, claims, comparisonMatrix, answerGrounding: claims.length ? "grounded" : resultCount ? "unmapped" : "no_evidence", confidence };
 }
 
+// فحص الأرقام: إذا ذكر الادعاء رقماً زمنياً/مقدارياً لا يظهر في أي من اقتباساته، يوسم [غير مؤكد]
+function unverifiedNumbers(claim: ClaimAttribution): boolean {
+  const claimText = claim.claim ?? "";
+  const numbersInClaim = claimText.match(/\d+/g) ?? [];
+  if (!numbersInClaim.length) return false;
+  const quotes = (claim.citations ?? []).map((c) => c.verbatimQuote ?? "").join(" ");
+  const normalizedQuotes = quotes.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+  return numbersInClaim.some((n) => !normalizedQuotes.includes(n));
+}
+
 export function composeProfessionalNarrative(answer: AiAnswer, claims: ClaimAttribution[], validation: ReturnType<typeof evidenceScopeValidation>): { answer: string; rebuilt: boolean } {
   if (!claims.length) return { answer: answer.answer, rebuilt: false };
   const lowered = answer.answer || "";
@@ -152,7 +162,8 @@ export function composeProfessionalNarrative(answer: AiAnswer, claims: ClaimAttr
     const sectionLabel = primary?.sectionPath ? ` (${primary.sectionPath.split(" > ").pop()})` : "";
     const docLabel = primary?.titleAr ? ` من ${primary.titleAr}` : "";
     const quoteLine = primary?.verbatimQuote ? `نص مسند: «${primary.verbatimQuote.slice(0, 320)}».` : "";
-    sections.push(`${idx + 1}) ${claim.claim} — ${articleLabel}${sectionLabel}${docLabel}.`);
+    const unverified = unverifiedNumbers(claim) ? " [غير مؤكد رقمياً — غير ظاهر حرفياً في الاقتباس]" : "";
+    sections.push(`${idx + 1}) ${claim.claim}${unverified} — ${articleLabel}${sectionLabel}${docLabel}.`);
     if (quoteLine) sections.push(quoteLine);
   });
   if (answer.comparisonMatrix.length > 1) {
@@ -192,7 +203,7 @@ export async function synthesizeGroundedAnswer(
   const fallback = fallbackAnswer(quality, results.length);
   if (!results.length) return { answer: fallback, model: null };
   try {
-    const evidence = results.slice(0, 12).map((result, index) => ({
+    const evidence = results.slice(0, 8).map((result, index) => ({
       index: index + 1,
       title: text(result.titleAr, 400),
       documentId: text(result.documentId, 240),
@@ -203,8 +214,8 @@ export async function synthesizeGroundedAnswer(
       jurisdictionCode: text(result.jurisdictionCode, 32),
       instrumentType: text(result.instrumentType, 40),
       legalDomain: text(result.legalDomain, 120),
-      excerpt: text(result.excerpt, 3_000),
-      verbatimQuote: text(result.excerpt, 3_000),
+      excerpt: text(result.excerpt, 1_600),
+      verbatimQuote: text(result.excerpt, 1_600),
       qualityScore: result.qualityScore,
       sourceAgreement: result.sourceAgreement,
     }));
