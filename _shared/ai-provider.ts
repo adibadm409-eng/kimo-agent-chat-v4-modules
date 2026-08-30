@@ -144,7 +144,40 @@ async function activeModel(service: ServiceClient, providerKey: string) {
   return asText(data?.model_key, 160);
 }
 
+
+// مسار سريع لمراحل العمال الفرعيين: نموذج فلاش (gemini-3.7-flash) بدل النموذج الأساسي
+// يفشل بأمان إلى مسار mistral الرئيسي إن تعذر
+async function invokeSubagentFast(service: ServiceClient, invocation: ModelInvocation): Promise<ModelResult> {
+  const system = providerSystem(invocation.stage);
+  const input = JSON.stringify({ instruction: invocation.instruction, question: invocation.question, data: invocation.payload });
+  try {
+    const adapter = await activeAdapter(service, 'gemini');
+    const apiKey = adapter ? Deno.env.get(adapter.secret_env_key) : null;
+    if (adapter && apiKey) {
+      const config = modelRequest(adapter, apiKey, 'gemini-3.7-flash', system, input, invocation.maxOutputTokens);
+      const timeoutMs = Math.min(30_000, Math.max(5_000, Number(invocation.timeoutMs ?? 30_000)));
+      const response = await fetch(adapter.endpoint_url, { method: 'POST', headers: config.headers, body: JSON.stringify(config.body), signal: AbortSignal.timeout(timeoutMs) });
+      const payload = await response.json().catch(() => null) as Row | null;
+      if (response.ok && payload) {
+        const output = asText(firstText(payload), 80_000);
+        if (output) {
+          const usage = findUsage(payload?.usage ?? payload?.usage_metadata ?? payload);
+          const promptTokens = usageNumber(usage, ['prompt_tokens', 'promptTokenCount', 'input_tokens']) ?? tokenEstimate(system + input);
+          const completionTokens = usageNumber(usage, ['completion_tokens', 'candidatesTokenCount', 'output_tokens']) ?? tokenEstimate(output);
+          return { output, provider: 'gemini-flash', model: 'gemini-3.7-flash', usage: { promptTokens, completionTokens, usageEstimated: !usage }, latencyMs: 0, routeId: 'subagent-fast' };
+        }
+      }
+    }
+  } catch { /* fall through to main route */ }
+  return invokeConfiguredModelMain(service, invocation);
+}
+
 export async function invokeConfiguredModel(service: ServiceClient, invocation: ModelInvocation): Promise<ModelResult> {
+  if (invocation.stage.startsWith('subagent_')) return invokeSubagentFast(service, invocation);
+  return invokeConfiguredModelMain(service, invocation);
+}
+
+export async function invokeConfiguredModelMain(service: ServiceClient, invocation: ModelInvocation): Promise<ModelResult> {
   const routes = await activeRoutes(service);
   const preferred = routes.find((route) => route.state === "primary");
   if (!preferred) throw new Error("AI_ROUTE_UNAVAILABLE");
