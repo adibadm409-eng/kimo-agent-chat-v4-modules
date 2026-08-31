@@ -94,6 +94,7 @@ export async function runOrchestration(
             legalDomain: input.legalDomain,
             documentIds: input.documentIds,
             includeNonActive: false,
+          useContextual: input.useContextualEmbeddings,
             idempotencyKey: `${input.idempotencyKey}:worker-retrieval`,
             queryEmbedding: null,
             profileKey: input.searchSkill.enabled ? input.searchSkill.profileKey : null,

@@ -40,6 +40,7 @@ export type NormalizedLegalKnowledgeSearchRequest = {
   legalDomain: string | null;
   documentIds: string[] | null;
   includeNonActive: boolean;
+  useContextual?: boolean;
   idempotencyKey: string | null;
   queryEmbedding?: number[] | null;
   profileKey?: string | null;
@@ -199,6 +200,7 @@ export function normalizeLegalKnowledgeSearchRequest(input: unknown): Normalized
     legalDomain: optionalFilter(body.legalDomain, 120),
     documentIds: normalizeDocumentIds(body.documentIds),
     includeNonActive: body.includeNonActive === true,
+    useContextual: body.useContextual === true,
     idempotencyKey,
     queryEmbedding: Array.isArray(body.queryEmbedding)
       ? body.queryEmbedding.filter((value): value is number => typeof value === "number")
@@ -268,7 +270,7 @@ async function searchLegalKnowledgeUncached(
   const queryEmbedding = request.queryEmbedding ?? await generateLegalKnowledgeEmbedding(request.query);
   const embedding = vectorLiteral(queryEmbedding);
   if (request.mode === "vector") {
-    const { data, error } = await service.rpc("search_legal_knowledge_vector", {
+    const { data, error } = await service.rpc(request.useContextual ? "search_legal_knowledge_contextual" : "search_legal_knowledge_vector", {
       p_query_embedding: embedding,
       p_match_threshold: request.matchThreshold,
       p_model_key: profile.modelKey,
@@ -287,7 +289,7 @@ async function searchLegalKnowledgeUncached(
 
   const [textResponse, vectorResponse] = await Promise.all([
     service.rpc("search_legal_knowledge_text", { p_query: request.query, ...common }),
-    service.rpc("search_legal_knowledge_vector", {
+    service.rpc(request.useContextual ? "search_legal_knowledge_contextual" : "search_legal_knowledge_vector", {
       p_query_embedding: embedding,
       p_match_threshold: request.matchThreshold,
       p_model_key: profile.modelKey,

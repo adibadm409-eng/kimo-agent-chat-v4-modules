@@ -63,6 +63,7 @@ export type RequestBody = {
   sectionPaths?: unknown;
   retrievalScope?: unknown;
   includeRelated?: unknown;
+  useContextualEmbeddings?: unknown;
   sourceDiscovery?: unknown;
   comparison?: unknown;
   searchSkill?: unknown;
@@ -195,6 +196,7 @@ export type ParsedRequest = {
   sectionPaths: string[] | null;
   retrievalScope: "narrow" | "normal" | "wide";
   includeRelated: boolean;
+  useContextualEmbeddings: boolean;
   comparison: ComparisonControl;
   orchestration: OrchestrationControl;
   searchSkill: SearchSkillControl;

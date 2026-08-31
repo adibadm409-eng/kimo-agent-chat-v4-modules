@@ -80,6 +80,7 @@ function parseRequest(body: RequestBody): ParsedRequest {
     sectionPaths,
     retrievalScope,
     includeRelated: body.includeRelated !== false,
+    useContextualEmbeddings: body.useContextualEmbeddings === true,
     comparison,
     orchestration,
     searchSkill,
